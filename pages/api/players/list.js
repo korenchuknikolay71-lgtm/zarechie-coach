@@ -32,7 +32,20 @@ export default async function handler(req, res) {
         position: p.position || '',
       };
     })
-  )).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  )).filter(Boolean);
 
-  res.status(200).json({ players });
+  // Roster stores each player under multiple id aliases (e.g. numeric WHOOP id
+  // and a "whoop_"-prefixed copy) — dedupe by name, preferring the numeric id
+  // since that's what whoop:history/survey keys are keyed by.
+  const byName = new Map();
+  for (const p of players) {
+    const existing = byName.get(p.name);
+    if (!existing || (existing.id.startsWith('whoop_') && !p.id.startsWith('whoop_'))) {
+      byName.set(p.name, p);
+    }
+  }
+
+  const deduped = Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+  res.status(200).json({ players: deduped });
 }
