@@ -638,7 +638,7 @@ export default function Home() {
             </div>
           )}
 
-          <footer className="mt-10 text-center text-[11px] text-slate-600 print:hidden">Periodyx · powered by Gemini</footer>
+          <footer className="mt-10 text-center text-[11px] text-slate-600 print:hidden">Periodyx · powered by Claude</footer>
         </div>
       </div>
     </>

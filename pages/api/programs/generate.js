@@ -14,12 +14,16 @@ const FOCUS_LABELS = {
   rehab: 'возврат после травмы / разгрузка',
 };
 
-// Gemini is asked to return exactly this shape via responseSchema — guarantees valid,
-// predictable structure (blocks → circuit exercises → sets) we can render as cards.
-const SESSION_SCHEMA = {
-  type: 'object',
-  required: ['assessment', 'blocks', 'warnings'],
-  properties: {
+// Claude returns the session through this tool call instead of free text — guarantees
+// valid, predictable structure (blocks → circuit exercises → sets) we can render as cards.
+const SESSION_TOOL = {
+  name: 'build_session',
+  description:
+    'Структурированная тренировка в зале на один конкретный день, разбитая на блоки (круги/суперсеты).',
+  input_schema: {
+    type: 'object',
+    required: ['assessment', 'blocks', 'warnings'],
+    properties: {
       assessment: {
         type: 'string',
         description: 'Краткая оценка состояния игрока на сегодня, 2-3 предложения. Упомяни, если каких-то данных за этот день не было.',
@@ -67,6 +71,7 @@ const SESSION_SCHEMA = {
         description: 'Ключевые предостережения/на что обратить внимание тренеру в зале сегодня.',
       },
     },
+  },
 };
 
 function avg(arr) {
@@ -161,7 +166,7 @@ const SYSTEM_PROMPT = `Ты — элитный тренер по силовой 
 - Учитывай фазу подготовки (in-season — поддержание, не наращивание) vs межсезонье (можно строить объём/силу), но в первую очередь — заявленную цель именно этой тренировки и комментарии тренера.
 - Пиши на русском языке, профессиональным языком тренера, без избыточных вступлений.
 
-Верни результат строго в виде JSON, соответствующего заданной схеме — без markdown, без пояснений вне структуры.`;
+Заполни структуру через инструмент build_session.`;
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) {
@@ -171,9 +176,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'GEMINI_API_KEY не настроен в переменных среды Vercel' });
+    return res.status(503).json({ error: 'ANTHROPIC_API_KEY не настроен в переменных среды Vercel' });
   }
 
   const { playerId, date, dayGoal = '', days = 7, focus = 'inseason', notes = '' } = req.body || {};
@@ -200,22 +205,22 @@ ${notes ? `Комментарии тренера: ${notes}` : ''}
 Составь ОДНУ тренировку в тренажёрном зале на ${targetDate} — не микроцикл, не неделю, а конкретно эту сессию.`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: SESSION_SCHEMA,
-            maxOutputTokens: 4000,
-          },
-        }),
-      }
-    );
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
+        tools: [SESSION_TOOL],
+        tool_choice: { type: 'tool', name: 'build_session' },
+      }),
+    });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -223,20 +228,13 @@ ${notes ? `Комментарии тренера: ${notes}` : ''}
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.find(p => p.text)?.text;
-    if (!text) {
+    const toolUse = data.content?.find(c => c.type === 'tool_use' && c.name === 'build_session');
+    if (!toolUse) {
       return res.status(502).json({ error: 'Модель не вернула структурированную тренировку' });
     }
 
-    let session;
-    try {
-      session = JSON.parse(text);
-    } catch {
-      return res.status(502).json({ error: 'Модель вернула невалидный JSON' });
-    }
-
     return res.status(200).json({
-      session,
+      session: toolUse.input,
       player: snapshot.player,
       dataSummary,
       date: targetDate,
