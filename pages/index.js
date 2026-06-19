@@ -18,30 +18,45 @@ import {
   Zap,
 } from 'lucide-react';
 
-const FOCUS_OPTIONS = [
-  { value: 'zvs_struct',        label: '🟢 ЗВС Фаза 1 — Структурная подготовка (13-26 июля)' },
-  { value: 'zvs_strength_base', label: '🟢 ЗВС Фаза 2 — Силовая база (27 июля — 9 августа)' },
-  { value: 'zvs_power_transfer',label: '🟢 ЗВС Фаза 3 — Мощность и перенос (10-25 августа)' },
-  { value: 'zvs_strength_day',  label: '🏐 ЗВС Сезон — Силовой день (3+ дней до игры)' },
-  { value: 'zvs_power_day',     label: '⚡ ЗВС Сезон — Мощностной день (1-2 дня до игры)' },
-  { value: 'zvs_recovery',      label: '💚 ЗВС Сезон — Восстановление (день после игры)' },
-  { value: 'zvs_deload',        label: '🔄 ЗВС Сезон — Деload (каждые 6 недель)' },
-  { value: 'pep_prep',         label: '🟡 PEP Preparation — база силы + скорость (нед. 1–3)' },
-  { value: 'pep_phase2',        label: '🟠 PEP Phase 2 — Vertical/Horizontal Power + Sled + SAQ (нед. 7–9)' },
-  { value: 'pep_phase2_deload', label: '🔄 PEP Phase 2 — Деload (нед. 10, 3 дн, перед Phase 3)' },
-  { value: 'pep_phase3',        label: '🔴 PEP Phase 3 — Линейная скорость + COD + Реактивная агильность (нед. 11–14)' },
-  { value: 'pep_phase3_deload', label: '🔄 PEP Phase 3 — Деload (нед. 15, перед Eccentric Camp)' },
-  { value: 'eccentric_camp',    label: '⚡ Сборы — Эксцентрическая фаза (нед. 1–3)' },
-  { value: 'eccentric_deload', label: '🔄 Сборы — Деload эксцентрики (нед. 4)' },
-  { value: 'isometric_camp',   label: '⚡ Сборы — Изометрическая фаза (нед. 5–7)' },
-  { value: 'isometric_deload', label: '🔄 Сборы — Деload изометрики (нед. 8)' },
-  { value: 'concentric',       label: '⚡ Сборы — Концентрическая / взрывная фаза' },
-  { value: 'inseason',         label: 'Игровой период (поддержание)' },
-  { value: 'preseason',        label: 'Межсезонье (наращивание)' },
-  { value: 'power',            label: 'Взрывная сила / прыжок' },
-  { value: 'strength',         label: 'Максимальная сила' },
-  { value: 'rehab',            label: 'Реабилитация / разгрузка' },
+const PERIODS = [
+  { value: 'inseason',  label: 'Сезон' },
+  { value: 'camp',      label: 'Сборы' },
+  { value: 'offseason', label: 'Межсезонье' },
+  { value: 'rehab',     label: 'Реабилитация' },
 ];
+
+const PHASES_BY_PERIOD = {
+  inseason: [
+    { value: 'zvs_strength_day',   label: 'Силовой день',        sub: '3+ дня до игры' },
+    { value: 'zvs_power_day',      label: 'Мощностной день',     sub: '1–2 дня до игры' },
+    { value: 'zvs_recovery',       label: 'Восстановление',      sub: 'После игры' },
+    { value: 'zvs_deload',         label: 'Разгрузочная неделя', sub: 'Каждые 6 недель' },
+  ],
+  camp: [
+    { value: 'eccentric_camp', label: 'Эксцентрическая фаза', sub: 'Недели 1–4' },
+    { value: 'isometric_camp', label: 'Изометрическая фаза',  sub: 'Недели 5–8' },
+    { value: 'concentric',     label: 'Концентрическая',       sub: 'Скорость / Недели 9–12' },
+  ],
+  offseason: [
+    { value: 'zvs_struct',         label: 'Структурная подготовка', sub: 'ЗВС Фаза 1' },
+    { value: 'zvs_strength_base',  label: 'Силовая база',           sub: 'ЗВС Фаза 2' },
+    { value: 'zvs_power_transfer', label: 'Мощность и перенос',     sub: 'ЗВС Фаза 3' },
+  ],
+  rehab: [
+    { value: 'rehab', label: 'Реабилитация / Травма', sub: null },
+  ],
+};
+
+function getPeriodForFocus(focusValue) {
+  for (const [p, phases] of Object.entries(PHASES_BY_PERIOD)) {
+    if (phases.some(ph => ph.value === focusValue)) return p;
+  }
+  return 'inseason';
+}
+
+function getFocusLabel(period, focusValue) {
+  return PHASES_BY_PERIOD[period]?.find(ph => ph.value === focusValue)?.label || focusValue;
+}
 
 function todayISO() {
   return new Date().toISOString().split('T')[0];
@@ -368,7 +383,8 @@ export default function Home() {
   const [date, setDate] = useState(todayISO());
   const [dayGoal, setDayGoal] = useState('');
   const [days, setDays] = useState(7);
-  const [focus, setFocus] = useState('inseason');
+  const [period, setPeriod] = useState('inseason');
+  const [focus, setFocus] = useState('zvs_strength_day');
   const [notes, setNotes] = useState('');
   const [sessionType, setSessionType] = useState('gym'); // 'gym' | 'warmup'
   const [loading, setLoading] = useState(false);
@@ -471,7 +487,7 @@ export default function Home() {
       }
       if (!res.ok) throw new Error(data.error || 'Ошибка генерации');
       setSession(data.session);
-      const fl = FOCUS_OPTIONS.find(o => o.value === focus)?.label?.replace(/^[^\wа-яА-ЯёЁ]+/, '').trim() || focus;
+      const fl = getFocusLabel(period, focus);
       setMeta({ player: data.player, dataSummary: data.dataSummary, date: data.date, dayGoal: data.dayGoal || '', focusLabel: fl, sessionType });
       setShowSummary(false);
     } catch (err) {
@@ -826,8 +842,53 @@ export default function Home() {
 
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
               <div>
-                <SectionLabel icon={<Layers size={11} />} text="Фаза подготовки" />
-                <Listbox value={focus} onChange={setFocus} options={FOCUS_OPTIONS} />
+                <SectionLabel icon={<Layers size={11} />} text="Период и фаза" />
+
+                {/* Period tabs */}
+                <div className="flex gap-1.5">
+                  {PERIODS.map(p => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => {
+                        setPeriod(p.value);
+                        setFocus(PHASES_BY_PERIOD[p.value][0].value);
+                      }}
+                      className={`flex-1 rounded-xl border py-2 text-[11px] font-bold transition-all ${
+                        period === p.value
+                          ? 'border-accent/40 bg-accent/10 text-accent'
+                          : 'border-white/[0.07] text-slate-500 hover:border-white/[0.12] hover:text-slate-300'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Phase cards */}
+                <div className={`mt-2 grid gap-1.5 ${PHASES_BY_PERIOD[period].length === 4 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                  {PHASES_BY_PERIOD[period].map(ph => (
+                    <button
+                      key={ph.value}
+                      type="button"
+                      onClick={() => setFocus(ph.value)}
+                      className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
+                        focus === ph.value
+                          ? 'border-accent/40 bg-accent/10'
+                          : 'border-white/[0.07] hover:border-white/[0.12]'
+                      }`}
+                    >
+                      <div className={`text-[11px] font-semibold leading-tight ${focus === ph.value ? 'text-accent' : 'text-slate-300'}`}>
+                        {ph.label}
+                      </div>
+                      {ph.sub && (
+                        <div className="mt-0.5 text-[10px] leading-tight text-slate-500">{ph.sub}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Schedule suggestion */}
                 {suggestion && (
                   <div className="mt-2 animate-fade-in flex items-center justify-between gap-2 rounded-xl border border-accent/15 bg-accent/[0.04] px-3 py-2">
                     <div className="min-w-0">
@@ -836,7 +897,11 @@ export default function Home() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setFocus(suggestion.focus)}
+                      onClick={() => {
+                        const p = getPeriodForFocus(suggestion.focus);
+                        setPeriod(p);
+                        setFocus(suggestion.focus);
+                      }}
                       className={`shrink-0 rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold text-accent transition hover:bg-accent/20 ${focusRing}`}
                     >
                       Применить
