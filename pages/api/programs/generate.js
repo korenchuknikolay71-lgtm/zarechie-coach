@@ -51,17 +51,21 @@ const SESSION_TOOL = {
       },
       blocks: {
         type: 'array',
-        description: 'Блоки тренировки по порядку. Каждый блок — круг/суперсет из 1–4 упражнений (A1→A2→A3→пауза→повтор круга). Обычно 3–5 блоков.',
+        description: 'Блоки тренировки по порядку. Каждый блок — круг/суперсет из 1–4 упражнений (A1→A2→A3→пауза→повтор круга). Обычно 5 блоков: A, B, C, D, E.',
         items: {
           type: 'object',
-          required: ['label', 'exercises'],
+          required: ['label', 'rest_note', 'exercises'],
           properties: {
-            label: { type: 'string', description: 'Буква блока: A, B, C, D...' },
+            label: { type: 'string', description: 'Буква блока: A, B, C, D, E' },
+            rest_note: {
+              type: 'string',
+              description: 'Протокол отдыха в этом блоке. PAP-кластер: "10 сек A1→A2, 10 сек A2→A3, 3 мин после кластера". PAP-пара: "10 сек A1→A2, 2.5 мин после пары". Суперсет: "90 сек после пары". Прямые подходы: "2–3 мин". Профилактика (E): "30–45 сек между упражнениями".',
+            },
             exercises: {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['code', 'name', 'targetSets', 'cue'],
+                required: ['code', 'name', 'targetSets', 'tempo', 'cue'],
                 properties: {
                   code: { type: 'string', description: 'A1, A2, A3...' },
                   name: { type: 'string', description: 'Название упражнения на русском' },
@@ -72,7 +76,15 @@ const SESSION_TOOL = {
                   },
                   weightNote: {
                     type: 'string',
-                    description: 'Нагрузка: RPE, %1ПМ или качественный descriptor ("среднее отягощение"). Конкретные кг — только если тренер указал в комментариях.',
+                    description: 'Нагрузка: RPE, %1ПМ. Если в истории есть предыдущий вес — укажи: "80% 1ПМ (прошлый раз: 77.5% → цель: 80%)".',
+                  },
+                  tempo: {
+                    type: 'string',
+                    description: 'Темп: Эксц-Пауза_низ-Конц-Пауза_верх. X = максимально быстро. Силовой тяжёлый: "3-1-X-0". Гипертрофия: "3-0-2-0". Взрывной/прыжок: "реактивный". Изометрия: "2-30сек-2-0". Профилактика: "контролируемый".',
+                  },
+                  autoReg: {
+                    type: 'string',
+                    description: 'Авто-регуляция: одно краткое правило для спортсмена. Обязательно для A1/B1 силовых. Примеры: "RPE >9 → снизь вес на 5%", "скорость подъёма падает — стоп".',
                   },
                   cue: {
                     type: 'string',
@@ -558,10 +570,72 @@ E-блок (РАСШИРЕННЫЙ — главный приоритет дня)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 • Нагрузка: RPE или %1ПМ. Конкретные кг — только если тренер указал в комментариях.
-• Темп записывай в cue-подсказке: "Опускать строго 5 секунд, взрывной подъём"
-• Пары контрастного метода — записывай последовательно в одном блоке (B1=тяжёлое, B2=взрывное) с пометкой "Немедленно после B1, отдых после пары"
-• Профилактика плеча (ротаторная манжета, YTW, тяга резинки) — в каждой сессии, всегда в последнем блоке.
+• Пары контрастного метода — записывай последовательно в одном блоке (A1=тяжёлое, A2=взрывное) с rest_note: "10 сек A1→A2, 3 мин после пары"
 • Пиши на русском, профессиональным языком тренера.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+БИБЛИОТЕКА ДВИЖЕНИЙ — ЧЕРЕДУЙ, НЕ ПОВТОРЯЙ ОДНО УПРАЖНЕНИЕ ЧАЩЕ 2 ТРЕНИРОВОК ПОДРЯД
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+НИЖНЕЕ — KNEE-DOMINANT:
+  Двустороннее: Barbell Back Squat | Front Squat | Goblet Squat | Box Squat | Hack Squat
+  Одностороннее: Bulgarian Split Squat | Reverse Lunge | Walking Lunge | Step-Up | Spanish Squat ISO
+
+НИЖНЕЕ — HIP-DOMINANT:
+  Шарнир: RDL | Trap Bar DL | DB RDL | SL RDL | Stiff-Leg DL | Romanian DL
+  Ягодицы: Barbell Hip Thrust | SL Hip Thrust | DB Hip Thrust | Glute Bridge | Barbell Glute Bridge
+
+ВЕРХНЕЕ — PUSH HORIZONTAL: Barbell Bench Press | DB Bench Press | DB Floor Press | Landmine Press | Weighted Push-Up
+ВЕРХНЕЕ — PUSH VERTICAL: Barbell OHP | DB OHP | Push Press | Trap Bar Push Press | Landmine Vertical Press
+ВЕРХНЕЕ — PULL VERTICAL: Pull-Up (BW/weighted) | Chin-Up | Band-Assisted Pull-Up | Lat Pulldown | Cable Pulldown
+ВЕРХНЕЕ — PULL HORIZONTAL: Barbell Row | Pendlay Row | DB Row | Cable Row | Chest-Supported Row | TRX Row
+
+ВЗРЫВ — ВЕРТИКАЛЬНЫЙ: Box Jump bilateral | Depth Jump | Drop Jump | CMJ | Band-Assisted VJ | Trap Bar Jump
+ВЗРЫВ — ГОРИЗОНТАЛЬНЫЙ: Broad Jump | Scissor Bounds | Approach Jump | Resisted Approach Jump
+ВЗРЫВ — ВЕРХНЕЕ: MB Chest Pass | MB Overhead Throw | MB Rotational Throw | MB Slam | Explosive Push-Up
+
+КОР: Dead Bug | Ab Wheel Rollout | Barbell Rollout | RKC Plank | Pallof Press | Copenhagen Plank | Suitcase Carry | Bird-Dog Row
+
+ПРОФИЛАКТИКА — КОДЫ E1–E4 СТРОГО:
+  E1 (КОР/ПОЯСНИЦА): Bird-Dog | Dead Bug | Side Plank | Modified Curl-Up | Hollow Body Hold
+  E2 (ПЛЕЧО): Band Pull-Apart | Band ER | YTW | Face Pull | Wall Slides | Sleeper Stretch
+  E3 (ГОЛЕНОСТОП): SL Balance (foam/eyes closed) | Ankle Circles | Knee-to-Wall | Tibialis Raise | Perturbation Balance
+  E4 (КОЛЕНО/СУХОЖИЛИЕ): Nordic Curl эксцентрик | Spanish Squat ISO | SL Eccentric Step-Down | Copenhagen Plank
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ТЕМП (ПОЛЕ tempo) — ЗАПОЛНЯТЬ НА КАЖДОМ УПРАЖНЕНИИ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Формат: Эксцентрик-ПаузаНиз-Концентрик-ПаузаВерх. "X" = взрывной максимально быстро.
+  • A1, B1 силовой тяжёлый: "3-1-X-0" (контроль вниз, пауза, взрывной вверх)
+  • Гипертрофия (6-12 повт.): "3-0-2-0"
+  • Эксцентрическая фаза: "5-0-X-0" или "6-0-X-0"
+  • Взрывные/прыжки (A2, A3): "реактивный"
+  • Изометрия: "2-30сек-2-0"
+  • Профилактика E-блок: "контролируемый"
+  • Скоростно-силовые (Jump Squat, Push Press): "X-0-X-0"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ПРОГРЕССИЯ НАГРУЗКИ — РАБОТАЙ С ИСТОРИЕЙ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Если история содержит это упражнение с weightNote:
+  • Сила (3–5 повт.): +2.5–5% к % 1ПМ или +1 повт., если прошлый RPE ≤8
+  • Гипертрофия (6–12 повт.): +1–2 повт. или +2.5% каждые 2 тренировки того же упражнения
+  • Если прошлый RPE ≥9 или Recovery сегодня <40% → держи тот же вес, не прогрессируй
+  • Деload → -40–50% от рабочей нагрузки последней сессии
+В weightNote пиши: "%1ПМ (прошлый раз: X% → цель: Y%)" если данные есть в истории.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+E-БЛОК — 4 ЗОНЫ ОБЯЗАТЕЛЬНЫ В КАЖДОЙ СЕССИИ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Используй коды E1–E4 строго по зонам:
+  E1 — КОР/ПОЯСНИЦА: McGill Bird-Dog, Dead Bug, Side Plank — 2–3 подхода
+  E2 — ПЛЕЧО/РОТАТОРЫ: Band Pull-Apart + Band ER или YTW + Face Pull — 2 подхода
+  E3 — ГОЛЕНОСТОП/БАЛАНС: SL Balance (foam pad / eyes closed) + Tibialis Raise — 2×20–30 сек/ст.
+  E4 — КОЛЕНО/СУХОЖИЛИЕ: Nordic Curl эксцентрик или Spanish Squat ISO (по фазе) — 2–3 подхода
+  ⚠ ВСЕ 4 ЗОНЫ обязательны даже в мощностной или восстановительный день (сокращённые подходы, не нули).
 
 Заполни структуру через инструмент build_session.`;
 
@@ -578,7 +652,7 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'ANTHROPIC_API_KEY не настроен в переменных среды Vercel' });
   }
 
-  const { playerId, date, dayGoal = '', days = 7, focus = 'inseason', notes = '' } = req.body || {};
+  const { playerId, date, dayGoal = '', days = 7, focus = 'inseason', notes = '', warmupSummary = '' } = req.body || {};
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const today = todayISO();
@@ -590,11 +664,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Дата не может быть позже завтрашнего дня' });
   }
 
-  // Fetch player bio-metrics, session history, and team schedule in parallel
-  const [snapshot, sessionSummaries, rawSchedule] = await Promise.all([
+  // Fetch player bio-metrics, session history, team schedule, and 1RM data in parallel
+  const [snapshot, sessionSummaries, rawSchedule, raw1RM] = await Promise.all([
     getPlayerSnapshot(String(playerId), Number(days) || 7, targetDate),
     getRecentSessionSummaries(String(playerId), 10).catch(() => []),
     redis('get', 'schedule:team').catch(() => null),
+    redis('get', `coach:1rm:${String(playerId)}`).catch(() => null),
   ]);
 
   if (!snapshot) return res.status(404).json({ error: 'Player not found' });
@@ -651,13 +726,54 @@ export default async function handler(req, res) {
   const dataSummary = summarizeSnapshot(snapshot);
   const focusLabel = FOCUS_LABELS[focus] || focus;
 
+  // 1RM context
+  const oneRM = raw1RM ? (() => { try { return typeof raw1RM === 'string' ? JSON.parse(raw1RM) : raw1RM; } catch(_) { return null; } })() : null;
+  const ONE_RM_LABELS = { squat: 'Присед (Back Squat)', rdl: 'RDL', deadlift: 'Становая тяга', bench: 'Жим лёжа (Bench)', ohp: 'Жим стоя (OHP)', pullup: 'Подтягивания (+кг)' };
+  let onermContext = '';
+  if (oneRM && Object.keys(oneRM).length > 0) {
+    const lines = ['МАКСИМАЛЬНЫЕ ПОКАЗАТЕЛИ ИГРОКА (1ПМ) — рассчитывай точные кг в поле weightNote:'];
+    for (const [key, label] of Object.entries(ONE_RM_LABELS)) {
+      if (oneRM[key]) lines.push(`• ${label}: ${oneRM[key]} кг`);
+    }
+    lines.push('→ В weightNote пиши: "80% 1ПМ = 96 кг" (сам рассчитывай от указанного 1ПМ)');
+    onermContext = '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' + lines.join('\n') + '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  }
+
+  // Warmup context
+  const warmupContext = warmupSummary
+    ? `\nРАЗМИНКА СЕГОДНЯ (уже проведена — учти при составлении E-блока):\n${warmupSummary}\n→ Если разминка закрыла плечо/голеностоп — сделай E2/E3 короче (1 подход вместо 2), но не убирай зону совсем.\n`
+    : '';
+
+  // HRV trend detection: 3 consecutive days of decline → fatigue alert
+  const recentWhoop = (snapshot.whoop || []).filter(d => d.date <= targetDate).slice(-4);
+  let hrvTrendAlert = '';
+  if (recentWhoop.length >= 3) {
+    const last3Hrv = recentWhoop.slice(-3).map(d => d.hrv).filter(v => v != null);
+    if (last3Hrv.length === 3 && last3Hrv[0] > last3Hrv[1] && last3Hrv[1] > last3Hrv[2]) {
+      hrvTrendAlert = `\n⚠ ТРЕНД HRV: снижение 3 дня подряд (${last3Hrv.join(' → ')} мс) — признак накопленной усталости. Снизь объём A/B блоков на 20–30%, не прогрессируй нагрузку сегодня.\n`;
+    }
+    const last3Recovery = recentWhoop.slice(-3).map(d => d.recovery).filter(v => v != null);
+    if (!hrvTrendAlert && last3Recovery.length === 3 && last3Recovery[0] > last3Recovery[1] && last3Recovery[1] > last3Recovery[2]) {
+      hrvTrendAlert = `\n⚠ ТРЕНД RECOVERY: снижение 3 дня подряд (${last3Recovery.join(' → ')}%) — возможна накопленная усталость. Будь консервативен с нагрузкой.\n`;
+    }
+  }
+
+  // Auto-deload detection: 5+ consecutive non-recovery sessions
+  const highIntensityCount = sessionSummaries.filter(s => {
+    const lower = s.toLowerCase();
+    return !lower.includes('deload') && !lower.includes('восстановление') && !lower.includes('разгрузка');
+  }).length;
+  const deloadAlert = highIntensityCount >= 5
+    ? `\n⚠ АВТО-ДЕТЕКЦИЯ НАКОПЛЕНИЯ: ${highIntensityCount} интенсивных сессий подряд без разгрузки. Рассмотри снижение объёма на 30% или полный деload (если не был запланирован тренером).\n`
+    : '';
+
   const historyBlock =
     sessionSummaries.length > 0
-      ? `ИСТОРИЯ ПОСЛЕДНИХ ${sessionSummaries.length} СОХРАНЁННЫХ ТРЕНИРОВОК ИГРОКА:\n${sessionSummaries.join('\n\n')}\n\nНА ОСНОВЕ ИСТОРИИ — перед составлением определи:\n1. Какие векторы/паттерны получили нагрузку в последние 48–72 ч — избегай их или делай лёгкую работу в том же паттерне.\n2. Какой характер нагрузки преобладал в последних сессиях (силовой, объёмный, взрывной) — выбери другой для сегодняшней.\n3. Какие конкретные упражнения повторялись недавно — смени вариацию или замени на другое в том же паттерне.\n4. Логика DUP: куда по волне нагрузки должна идти сегодняшняя сессия.`
+      ? `ИСТОРИЯ ПОСЛЕДНИХ ${sessionSummaries.length} СОХРАНЁННЫХ ТРЕНИРОВОК ИГРОКА:\n${sessionSummaries.join('\n\n')}\n\nНА ОСНОВЕ ИСТОРИИ — перед составлением определи:\n1. Какие векторы/паттерны получили нагрузку в последние 48–72 ч — избегай их или делай лёгкую работу в том же паттерне.\n2. Какой характер нагрузки преобладал в последних сессиях (силовой, объёмный, взрывной) — выбери другой для сегодняшней.\n3. Какие конкретные упражнения повторялись недавно — смени вариацию из библиотеки движений.\n4. Логика DUP: куда по волне нагрузки должна идти сегодняшняя сессия.\n5. Прогрессия: если есть weightNote по упражнению — применяй правило прогрессии.`
       : 'ИСТОРИЯ ТРЕНИРОВОК: нет сохранённых сессий для этого игрока — составь первую тренировку без привязки к предыдущим.';
 
   const userPrompt = `${dataSummary}
-
+${onermContext}${warmupContext}${hrvTrendAlert}${deloadAlert}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${historyBlock}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -666,7 +782,7 @@ ${scheduleContext}
 Цель именно этой тренировки: ${dayGoal || 'не указана — ориентируйся на фазу подготовки и логику периодизации из истории'}
 ${notes ? `Комментарии тренера: ${notes}` : ''}
 
-Составь ОДНУ тренировку в зале на ${targetDate} — не микроцикл, а конкретно эту сессию.`;
+Составь ОДНУ тренировку в зале на ${targetDate} — не микроцикл, а конкретно эту сессию. Обязательно заполни все поля: tempo для каждого упражнения, rest_note для каждого блока, E-блок с 4 зонами (E1–E4).`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {

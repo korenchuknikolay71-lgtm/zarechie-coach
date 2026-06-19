@@ -49,6 +49,15 @@ input[type='date']::-webkit-calendar-picker-indicator {
   }
 }
 
+/* Hide scrollbar while keeping scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* react-markdown output inside the generated session card */
 .prose-session h1,
 .prose-session h2,
