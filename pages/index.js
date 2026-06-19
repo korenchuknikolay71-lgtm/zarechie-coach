@@ -25,6 +25,13 @@ const PERIODS = [
   { value: 'rehab',     label: 'Реабилитация' },
 ];
 
+const PERIOD_COLORS = {
+  inseason:  { tab: 'border-cyan-400/40 bg-cyan-400/[0.09] text-cyan-300',   card: 'border-cyan-400/30 bg-cyan-400/[0.06]',   text: 'text-cyan-300',   dot: 'bg-cyan-400',   glow: 'shadow-[0_0_12px_rgba(34,211,238,0.15)]' },
+  camp:      { tab: 'border-amber-400/40 bg-amber-400/[0.09] text-amber-300', card: 'border-amber-400/30 bg-amber-400/[0.06]', text: 'text-amber-300', dot: 'bg-amber-400',   glow: 'shadow-[0_0_12px_rgba(251,191,36,0.15)]' },
+  offseason: { tab: 'border-emerald-400/40 bg-emerald-400/[0.09] text-emerald-300', card: 'border-emerald-400/30 bg-emerald-400/[0.06]', text: 'text-emerald-300', dot: 'bg-emerald-400', glow: 'shadow-[0_0_12px_rgba(52,211,153,0.15)]' },
+  rehab:     { tab: 'border-violet-400/40 bg-violet-400/[0.09] text-violet-300',  card: 'border-violet-400/30 bg-violet-400/[0.06]',  text: 'text-violet-300',  dot: 'bg-violet-400',  glow: 'shadow-[0_0_12px_rgba(167,139,250,0.15)]' },
+};
+
 const PHASES_BY_PERIOD = {
   inseason: [
     { value: 'zvs_strength_day',   label: 'Силовой день',        sub: '3+ дня до игры' },
@@ -840,87 +847,106 @@ export default function Home() {
               />
             </div>
 
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              <div>
-                <SectionLabel icon={<Layers size={11} />} text="Период и фаза" />
+            {/* ── Divider ── */}
+            <div className="mt-5 h-px bg-white/[0.05]" />
 
-                {/* Period tabs */}
-                <div className="flex gap-1.5">
-                  {PERIODS.map(p => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => {
-                        setPeriod(p.value);
-                        setFocus(PHASES_BY_PERIOD[p.value][0].value);
-                      }}
-                      className={`flex-1 rounded-xl border py-2 text-[11px] font-bold transition-all ${
-                        period === p.value
-                          ? 'border-accent/40 bg-accent/10 text-accent'
-                          : 'border-white/[0.07] text-slate-500 hover:border-white/[0.12] hover:text-slate-300'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
+            {/* ── Period & Phase ── */}
+            <div className="mt-5">
+              <SectionLabel icon={<Layers size={11} />} text="Период и фаза" />
 
-                {/* Phase cards */}
-                <div className={`mt-2 grid gap-1.5 ${PHASES_BY_PERIOD[period].length === 4 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                  {PHASES_BY_PERIOD[period].map(ph => (
-                    <button
-                      key={ph.value}
-                      type="button"
-                      onClick={() => setFocus(ph.value)}
-                      className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
-                        focus === ph.value
-                          ? 'border-accent/40 bg-accent/10'
-                          : 'border-white/[0.07] hover:border-white/[0.12]'
-                      }`}
-                    >
-                      <div className={`text-[11px] font-semibold leading-tight ${focus === ph.value ? 'text-accent' : 'text-slate-300'}`}>
+              {/* Period tabs */}
+              <div className="flex gap-1.5">
+                {PERIODS.map(p => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => {
+                      setPeriod(p.value);
+                      setFocus(PHASES_BY_PERIOD[p.value][0].value);
+                    }}
+                    className={`flex-1 rounded-xl border py-2.5 text-[11px] font-bold tracking-wide transition-all ${
+                      period === p.value
+                        ? `${PERIOD_COLORS[p.value].tab} ${PERIOD_COLORS[p.value].glow}`
+                        : 'border-white/[0.06] text-slate-600 hover:border-white/[0.12] hover:text-slate-400'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Phase cards */}
+              <div className={`mt-2 grid gap-1.5 ${PHASES_BY_PERIOD[period].length === 4 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                {PHASES_BY_PERIOD[period].map(ph => (
+                  <button
+                    key={ph.value}
+                    type="button"
+                    onClick={() => setFocus(ph.value)}
+                    className={`rounded-xl border px-3.5 py-3 text-left transition-all ${
+                      focus === ph.value
+                        ? `${PERIOD_COLORS[period].card} ${PERIOD_COLORS[period].glow}`
+                        : 'border-white/[0.06] hover:border-white/[0.10] hover:bg-white/[0.02]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${focus === ph.value ? PERIOD_COLORS[period].dot : 'bg-slate-700'}`} />
+                      <div className={`text-[11px] font-semibold leading-tight transition-colors ${focus === ph.value ? PERIOD_COLORS[period].text : 'text-slate-400'}`}>
                         {ph.label}
                       </div>
-                      {ph.sub && (
-                        <div className="mt-0.5 text-[10px] leading-tight text-slate-500">{ph.sub}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Schedule suggestion */}
-                {suggestion && (
-                  <div className="mt-2 animate-fade-in flex items-center justify-between gap-2 rounded-xl border border-accent/15 bg-accent/[0.04] px-3 py-2">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-accent/60">Расписание → </span>
-                      <span className="text-[11px] text-slate-400">{suggestion.reason}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const p = getPeriodForFocus(suggestion.focus);
-                        setPeriod(p);
-                        setFocus(suggestion.focus);
-                      }}
-                      className={`shrink-0 rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold text-accent transition hover:bg-accent/20 ${focusRing}`}
-                    >
-                      Применить
-                    </button>
-                  </div>
-                )}
+                    {ph.sub && (
+                      <div className="mt-1 ml-3.5 text-[10px] leading-tight text-slate-600">{ph.sub}</div>
+                    )}
+                  </button>
+                ))}
               </div>
-              <div>
-                <SectionLabel icon={<TrendingUp size={11} />} text="Окно тренда (дней до даты)" />
-                <input
-                  type="number"
-                  min={3}
-                  max={30}
-                  value={days}
-                  onChange={e => setDays(Number(e.target.value))}
-                  className={`${inputBase} ${focusRing}`}
-                />
+
+              {/* Schedule suggestion */}
+              {suggestion && (
+                <div className="mt-2 animate-fade-in flex items-center justify-between gap-2 rounded-xl border border-accent/15 bg-accent/[0.04] px-3 py-2">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-accent/60">Расписание → </span>
+                    <span className="text-[11px] text-slate-400">{suggestion.reason}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = getPeriodForFocus(suggestion.focus);
+                      setPeriod(p);
+                      setFocus(suggestion.focus);
+                    }}
+                    className={`shrink-0 rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold text-accent transition hover:bg-accent/20 ${focusRing}`}
+                  >
+                    Применить
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Trend window (secondary, compact) ── */}
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-2.5">
+              <TrendingUp size={12} className="shrink-0 text-slate-600" />
+              <span className="text-[11px] text-slate-600">Анализ данных:</span>
+              <span className="text-[11px] font-semibold text-slate-400">последние {days} дн.</span>
+              <div className="ml-auto flex items-center gap-1">
+                {[3, 7, 14, 21].map(v => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setDays(v)}
+                    className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all ${
+                      days === v
+                        ? 'bg-white/[0.08] text-slate-200'
+                        : 'text-slate-600 hover:text-slate-400'
+                    }`}
+                  >
+                    {v}д
+                  </button>
+                ))}
               </div>
             </div>
+
+            <div className="mt-5 h-px bg-white/[0.05]" />
 
             <div className="mt-5">
               <SectionLabel icon={<MessageSquare size={11} />} text="Комментарии тренера (необязательно)" />
