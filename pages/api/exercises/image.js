@@ -50,11 +50,11 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt: buildPrompt(name),
         n: 1,
         size: '1024x1024',
-        quality: 'standard',
+        quality: 'medium',
       }),
     });
 
@@ -64,16 +64,10 @@ export default async function handler(req, res) {
     }
 
     const data = await r.json();
-    const imageUrl = data.data?.[0]?.url;
-    if (!imageUrl) return res.status(502).json({ error: 'DALL-E не вернул URL изображения' });
+    const b64 = data.data?.[0]?.b64_json;
+    if (!b64) return res.status(502).json({ error: 'OpenAI не вернул изображение' });
 
-    // Fetch binary and convert to base64 (URLs expire after 1 hour)
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) return res.status(502).json({ error: 'Не удалось скачать изображение' });
-    const buffer = await imgRes.arrayBuffer();
-    const b64 = Buffer.from(buffer).toString('base64');
-    const contentType = imgRes.headers.get('content-type') || 'image/png';
-    const dataUrl = `data:${contentType};base64,${b64}`;
+    const dataUrl = `data:image/png;base64,${b64}`;
     redis('set', cacheKey, dataUrl).catch(() => {});
 
     return res.status(200).json({ image: dataUrl, cached: false });
