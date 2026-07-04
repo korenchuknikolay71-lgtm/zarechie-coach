@@ -1,13 +1,29 @@
 // pages/api/programs/regenerate-exercise.js
 // POST { playerId, date, blockIndex, exerciseIndex }
-// Replaces one exercise in the saved session with a fresh Claude-generated alternative.
-// Uses Haiku for fast single-exercise generation.
+// Replaces one exercise in the saved session with a fresh AI-generated alternative.
 
 import { redis } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
 
 const BANNED =
   'Присед со штангой на спине (Back Squat) | Жим штанги лёжа (Bench Press barbell) | Nordic Curl | Ab Wheel Rollout / Ab Roller | Broad Jump | DB Floor Press | Band Wrist Stability | Jump Set Drill | KB Press / жим с гирями | Tricep Pushdown с резиновой петлёй / Band Tricep Pushdown';
+
+const OPENAI_MODEL = 'gpt-5.5';
+
+function extractText(data) {
+  if (data?.output_text) return data.output_text;
+  const chunks = [];
+  const stack = Array.isArray(data?.output) ? [...data.output] : [];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item || typeof item !== 'object') continue;
+    if (item.type === 'output_text' && item.text) chunks.push(item.text);
+    if (item.type === 'text' && item.text) chunks.push(item.text);
+    if (Array.isArray(item.content)) stack.push(...item.content);
+    if (Array.isArray(item.output)) stack.push(...item.output);
+  }
+  return chunks.join('').trim();
+}
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
@@ -67,31 +83,31 @@ ${(session.blocks || []).map((b, i) => `Блок ${i + 1} (${b.label || b.code |
 ОТВЕТ — только JSON, без markdown, без пояснений:
 {"code":"${exercise.code}","name":"...","tempo":"${exercise.tempo || ''}","targetSets":${JSON.stringify(exercise.targetSets || ['3x8'])},"weightNote":"${exercise.weightNote || ''}","cue":"...","autoReg":"${exercise.autoReg || ''}"}`;
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!anthropicKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY не настроен' });
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) return res.status(503).json({ error: 'OPENAI_API_KEY не настроен' });
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${openaiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
+        model: OPENAI_MODEL,
+        input: prompt,
+        max_output_tokens: 700,
+        store: false,
       }),
     });
 
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      return res.status(r.status).json({ error: err.error?.message || `Anthropic error ${r.status}` });
+      return res.status(r.status).json({ error: err.error?.message || `OpenAI error ${r.status}` });
     }
 
     const msg = await r.json();
-    const text = msg.content?.[0]?.text?.trim() || '';
+    const text = extractText(msg);
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return res.status(502).json({ error: 'Не удалось распознать ответ', raw: text });
 

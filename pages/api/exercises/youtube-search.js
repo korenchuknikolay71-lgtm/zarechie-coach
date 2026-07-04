@@ -1,6 +1,6 @@
 // pages/api/exercises/youtube-search.js
 // GET ?name=... → searches YouTube Data API v3 for an exercise video.
-// Before searching, Claude Haiku translates the Russian exercise name into an optimal
+// Before searching, AI translates the Russian exercise name into an optimal
 // English S&C search query (YouTube has far more high-quality English tutorials). If the
 // English search returns nothing (or translation fails), it falls back to the Russian query.
 // Results are cached in Redis for 90 days so each exercise is searched at most once.
@@ -11,36 +11,48 @@ import { setVideo } from '../../../lib/exerciseLibrary';
 
 export const config = { maxDuration: 10 };
 
+const OPENAI_MODEL = 'gpt-5.5';
+
 function slugify(name) {
   return name.toLowerCase().trim().replace(/[^a-z0-9а-яё]+/gi, '-').replace(/^-+|-+$/g, '');
 }
 
-// Translate a Russian S&C exercise name into a concise English YouTube search query via
-// Claude Haiku. Returns null on any failure so the caller can fall back to Russian.
-async function buildSearchQuery(name, anthropicKey) {
-  if (!anthropicKey) return null;
+function extractText(data) {
+  if (data?.output_text) return data.output_text;
+  const chunks = [];
+  const stack = Array.isArray(data?.output) ? [...data.output] : [];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item || typeof item !== 'object') continue;
+    if (item.type === 'output_text' && item.text) chunks.push(item.text);
+    if (item.type === 'text' && item.text) chunks.push(item.text);
+    if (Array.isArray(item.content)) stack.push(...item.content);
+    if (Array.isArray(item.output)) stack.push(...item.output);
+  }
+  return chunks.join('').trim();
+}
+
+// Translate a Russian S&C exercise name into a concise English YouTube search query.
+// Returns null on any failure so the caller can fall back to Russian.
+async function buildSearchQuery(name, openaiKey) {
+  if (!openaiKey) return null;
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${openaiKey}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 30,
-        messages: [
-          {
-            role: 'user',
-            content: `Translate this Russian S&C exercise name to a concise English YouTube search query (3-5 words, no punctuation): ${name}. Reply with only the search query.`,
-          },
-        ],
+        model: OPENAI_MODEL,
+        input: `Translate this Russian S&C exercise name to a concise English YouTube search query (3-5 words, no punctuation): ${name}. Reply with only the search query.`,
+        max_output_tokens: 40,
+        store: false,
       }),
     });
     if (!r.ok) return null;
     const data = await r.json();
-    const text = data?.content?.find(c => c.type === 'text')?.text || '';
+    const text = extractText(data);
     const query = text.trim().replace(/^["']|["']$/g, '').trim();
     return query || null;
   } catch (_) {
@@ -96,7 +108,7 @@ export default async function handler(req, res) {
     let url = null;
 
     // 1. Try an English search first (better S&C coverage on YouTube).
-    const englishQuery = await buildSearchQuery(name, process.env.ANTHROPIC_API_KEY);
+    const englishQuery = await buildSearchQuery(name, process.env.OPENAI_API_KEY);
     if (englishQuery) {
       try {
         url = await youtubeSearch(`${englishQuery} exercise tutorial technique`, apiKey, null);
