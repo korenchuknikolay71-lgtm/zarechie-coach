@@ -59,6 +59,36 @@ const WARMUP_TOOL = {
   },
 };
 
+const OPENAI_WARMUP_MODEL = 'gpt-5.5';
+
+function warmupToolForOpenAI(tool) {
+  return {
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema,
+    strict: false,
+  };
+}
+
+function parseFunctionArguments(args) {
+  if (!args) return null;
+  if (typeof args === 'object') return args;
+  try { return JSON.parse(args); } catch { return null; }
+}
+
+function findOpenAIFunctionCall(output, name) {
+  const stack = Array.isArray(output) ? [...output] : [];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item || typeof item !== 'object') continue;
+    if (item.type === 'function_call' && item.name === name) return item;
+    if (Array.isArray(item.content)) stack.push(...item.content);
+    if (Array.isArray(item.output)) stack.push(...item.output);
+  }
+  return null;
+}
+
 function avg(arr) {
   const vals = arr.filter(v => v != null && !Number.isNaN(v));
   if (!vals.length) return null;
@@ -186,8 +216,8 @@ export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY не настроен' });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'OPENAI_API_KEY не настроен' });
 
   const { playerId, date, dayGoal = '', days = 7, focus = 'inseason', notes = '' } = req.body || {};
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
@@ -231,21 +261,20 @@ ${notes ? `Комментарии тренера: ${notes}` : ''}
 Составь разминку на ${targetDate} — 15–20 минут, 4 блока (A/B/C/D). Адаптируй к биометрике игрока и фазе подготовки.`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'prompt-caching-2024-07-31',
+        Authorization: `Bearer ${apiKey}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-        messages: [{ role: 'user', content: userPrompt }],
-        tools: [WARMUP_TOOL],
-        tool_choice: { type: 'tool', name: 'build_warmup' },
+        model: OPENAI_WARMUP_MODEL,
+        instructions: SYSTEM_PROMPT,
+        input: userPrompt,
+        max_output_tokens: 2000,
+        store: false,
+        tools: [warmupToolForOpenAI(WARMUP_TOOL)],
+        tool_choice: { type: 'function', name: 'build_warmup' },
       }),
     });
 
@@ -255,14 +284,15 @@ ${notes ? `Комментарии тренера: ${notes}` : ''}
     }
 
     const data = await response.json();
-    const toolUse = data.content?.find(c => c.type === 'tool_use' && c.name === 'build_warmup');
-    if (!toolUse) return res.status(502).json({ error: 'Модель не вернула структуру разминки' });
+    const toolUse = findOpenAIFunctionCall(data.output, 'build_warmup');
+    const warmup = parseFunctionArguments(toolUse?.arguments);
+    if (!warmup) return res.status(502).json({ error: 'Модель не вернула структуру разминки' });
 
     return res.status(200).json({
       session: {
-        blocks: toolUse.input.blocks,
-        assessment: toolUse.input.assessment,
-        periodization_note: toolUse.input.duration_note,
+        blocks: warmup.blocks,
+        assessment: warmup.assessment,
+        periodization_note: warmup.duration_note,
         warnings: '',
       },
       player: snapshot.player,
