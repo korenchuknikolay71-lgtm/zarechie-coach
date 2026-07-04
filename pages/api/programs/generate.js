@@ -49,7 +49,7 @@ const FOCUS_LABELS = {
 };
 
 // SESSION_TOOL factory. Pass includeImgPrompt=true to add the img_prompt field back into
-// each exercise (used by the async Sonnet generator, where token budget is not a concern).
+// each exercise (used by the async AI generator, where token budget is not a concern).
 export function buildSessionTool({ includeImgPrompt = false } = {}) {
   const exerciseProps = {
     code: { type: 'string', description: 'A1, A2, A3...' },
