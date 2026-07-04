@@ -1667,8 +1667,8 @@ const CAMP_FORBIDDEN = [
 const JUMP_TAGS = ['прыжок', 'jump', 'hop', 'bound', 'cmj', 'плиометр', 'tuck jump', 'split jump', 'box jump', 'depth jump'];
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState('');
-  const [keyPanelOpen, setKeyPanelOpen] = useState(true);
+  const [apiKey, setApiKey] = useState('coach-ui');
+  const [keyPanelOpen, setKeyPanelOpen] = useState(false);
   const [players, setPlayers] = useState([]);
   const [playersError, setPlayersError] = useState('');
   const [playerId, setPlayerId] = useState('');
@@ -1858,11 +1858,9 @@ export default function Home() {
   const [volumeStats, setVolumeStats] = useState(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('coachApiKey');
-    if (saved) {
-      setApiKey(saved);
-      setKeyPanelOpen(false);
-    }
+    localStorage.removeItem('coachApiKey');
+    setApiKey('coach-ui');
+    setKeyPanelOpen(false);
   }, []);
 
   // Resume a pending async gym generation after a tab reload. Only resumes when the saved
@@ -3107,7 +3105,7 @@ export default function Home() {
 
             <button
               type="button"
-              onClick={() => setKeyPanelOpen(o => !o)}
+              onClick={() => setKeyPanelOpen(false)}
               className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-semibold transition-all ${focusRing} ${
                 keyConnected
                   ? 'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-400 hover:bg-emerald-500/[0.11]'
@@ -3125,18 +3123,18 @@ export default function Home() {
               ) : (
                 <>
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-700" />
-                  Настроить ключ
+                  Нет подключения
                 </>
               )}
             </button>
 
-            {keyPanelOpen && (
+            {false && keyPanelOpen && (
               <div className="mt-3 animate-fade-in space-y-2">
                 <input
                   type="password"
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
-                  placeholder="TRAINER_API_KEY..."
+                  placeholder=""
                   className={`${inputBase} text-[12px] ${focusRing}`}
                 />
                 {playersError && (
@@ -3863,7 +3861,7 @@ export default function Home() {
               </div>
               <button
                 type="button"
-                onClick={() => setKeyPanelOpen(o => !o)}
+                onClick={() => setKeyPanelOpen(false)}
                 className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-semibold transition-all ${focusRing} ${
                   keyConnected
                     ? 'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-400'
@@ -3873,16 +3871,16 @@ export default function Home() {
                 {keyConnected ? (
                   <><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Подключено</>
                 ) : (
-                  <><span className="h-1.5 w-1.5 rounded-full bg-slate-700" />Настроить ключ</>
+                  <><span className="h-1.5 w-1.5 rounded-full bg-slate-700" />Нет подключения</>
                 )}
               </button>
-              {keyPanelOpen && (
+              {false && keyPanelOpen && (
                 <div className="mt-3">
                   <input
                     type="password"
                     value={apiKey}
                     onChange={e => setApiKey(e.target.value)}
-                    placeholder="TRAINER_API_KEY..."
+                    placeholder=""
                     className={`${inputBase} text-[12px] ${focusRing}`}
                   />
                 </div>
