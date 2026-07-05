@@ -219,13 +219,13 @@ export default async function handler(req, res) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'OPENAI_API_KEY не настроен' });
 
-  const { playerId, date, dayGoal = '', days = 7, focus = 'inseason', notes = '' } = req.body || {};
+  const { playerId, date, dayGoal = '', days = 7, focus = 'inseason', notes = '', workspace = 'zarechie' } = req.body || {};
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const today = todayISO();
   const targetDate = date || today;
 
-  const snapshot = await getPlayerSnapshot(String(playerId), Number(days) || 7, targetDate);
+  const snapshot = await getPlayerSnapshot(String(playerId), Number(days) || 7, targetDate, 28, workspace);
   if (!snapshot) return res.status(404).json({ error: 'Player not found' });
 
   const dataSummary = summarizeSnapshot(snapshot);

@@ -10,6 +10,8 @@
 
 import { redis, redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { getPlayerSnapshot } from '../../../lib/playerData';
+import { gymTonnageDatesKey, gymTonnageKey } from '../../../lib/workspacePrefix';
 
 function isoDaysBefore(date, n) {
   const d = new Date(date + 'T12:00:00');
@@ -59,53 +61,31 @@ export default async function handler(req, res) {
 
   const playerId = String(req.query.playerId || '');
   const days = Math.min(parseInt(req.query.days, 10) || 28, 60);
+  const workspace = String(req.query.workspace || 'zarechie');
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const targetDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date());
 
   try {
+    const totalWindow = days + 42;
+    const snapshot = await getPlayerSnapshot(playerId, totalWindow, targetDate, totalWindow, workspace).catch(() => null);
+
     // ── CMJ history ──────────────────────────────────────────────────────────
-    let cmjHistory = [];
-    const neuroRaw = await redis('get', `neuro:history:${playerId}`).catch(() => null);
-    if (neuroRaw) {
-      let arr = [];
-      try { arr = typeof neuroRaw === 'string' ? JSON.parse(neuroRaw) : neuroRaw; } catch { arr = []; }
-      if (Array.isArray(arr)) {
-        cmjHistory = arr
-          .filter(e => e && e.date && (e.cmj != null || e.rsi != null))
-          .map(e => ({ date: e.date, cmj: e.cmj != null ? Number(e.cmj) : null, rsi: e.rsi != null ? Number(e.rsi) : null }))
-          .sort((a, b) => a.date.localeCompare(b.date))
-          .slice(-10);
-      }
-    }
+    const neuroHistory = Array.isArray(snapshot?.neuro?.history) ? snapshot.neuro.history : [];
+    const cmjHistory = neuroHistory
+      .filter(e => e && e.date && (e.cmj != null || e.rsi != null))
+      .map(e => ({ date: e.date, cmj: e.cmj != null ? Number(e.cmj) : null, rsi: e.rsi != null ? Number(e.rsi) : null }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-10);
 
     // ── sRPE load map (for ACWR + TSB) ─────────────────────────────────────────
     // TSB needs a long chronic horizon (42-day CTL) so pull an extra buffer.
-    const totalWindow = days + 42;
-    const known = (await redis('smembers', `survey:dates:${playerId}`).catch(() => [])) || [];
-    const cutoff = isoDaysBefore(targetDate, totalWindow - 1);
-    const dates = known.filter(d => d >= cutoff && d <= targetDate).sort();
-
-    // Optional manual durations override.
-    let manualObj = {};
-    const manualRaw = await redis('get', `manual:snapshot:${playerId}`).catch(() => null);
-    if (manualRaw) {
-      try { manualObj = typeof manualRaw === 'string' ? JSON.parse(manualRaw) : manualRaw; } catch { manualObj = {}; }
-    }
-
     const loadMap = {};
-    if (dates.length) {
-      const raws = await redisPipeline(dates.map(d => ['get', `survey:${playerId}:${d}`])).catch(() => []);
-      dates.forEach((d, i) => {
-        const raw = raws[i];
-        if (!raw) return;
-        let obj;
-        try { obj = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return; }
-        if (obj && obj.srpe != null) {
-          const dur = obj.duration ?? manualObj?.[d]?.duration ?? 60;
-          loadMap[d] = obj.srpe * dur;
-        }
-      });
+    const manualObj = snapshot?.manual || {};
+    for (const obj of (snapshot?.chronicSurveys || snapshot?.surveys || [])) {
+      if (!obj?.date || obj.srpe == null) continue;
+      const dur = obj.duration ?? manualObj?.[obj.date]?.duration ?? 60;
+      loadMap[obj.date] = obj.srpe * dur;
     }
 
     const firstLoadDate = Object.keys(loadMap).sort()[0] || null;
@@ -126,9 +106,9 @@ export default async function handler(req, res) {
     let tonnageMap = {};
     const gtCutoffScore = parseInt(isoDaysBefore(targetDate, totalWindow - 1).replace(/-/g, ''), 10);
     const gtTargetScore = parseInt(targetDate.replace(/-/g, ''), 10);
-    const gtDates = (await redis('zrangebyscore', `coach:gym_tonnage_dates:${playerId}`, String(gtCutoffScore), String(gtTargetScore)).catch(() => [])) || [];
+    const gtDates = (await redis('zrangebyscore', gymTonnageDatesKey(workspace, playerId), String(gtCutoffScore), String(gtTargetScore)).catch(() => [])) || [];
     if (Array.isArray(gtDates) && gtDates.length) {
-      const gtRaws = await redisPipeline(gtDates.map(d => ['get', `coach:gym_tonnage:${playerId}:${d}`])).catch(() => []);
+      const gtRaws = await redisPipeline(gtDates.map(d => ['get', gymTonnageKey(workspace, playerId, d)])).catch(() => []);
       gtDates.forEach((d, i) => { const v = parseFloat(gtRaws[i]); if (v > 0) tonnageMap[d] = v; });
       const firstGtDate = Object.keys(tonnageMap).sort()[0] || null;
       gymAcwrHistory = calcEWMAAcwr(tonnageMap, firstGtDate, targetDate)

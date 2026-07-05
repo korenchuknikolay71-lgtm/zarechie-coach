@@ -1888,11 +1888,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!apiKey) return;
-    fetch('/api/schedule', { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/schedule?workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(data => { if (Array.isArray(data.events)) setScheduleEvents(data.events); })
       .catch(() => {});
-  }, [apiKey]);
+  }, [apiKey, workspace]);
 
   function switchWorkspace(ws) {
     setWorkspace(ws);
@@ -1952,7 +1952,7 @@ export default function Home() {
         fetch('/api/players/feedbacks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-          body: JSON.stringify({ playerIds: list.map(p => p.id), date: today }),
+          body: JSON.stringify({ playerIds: list.map(p => p.id), date: today, workspace }),
         }).then(r2 => r2.json()).then(d => setPlayerFeedbacks(d.feedbacks || {})).catch(() => {});
       })
       .catch(err => {
@@ -2020,12 +2020,12 @@ export default function Home() {
     if (!trendsOpen || !apiKey || !playerId) return;
     if (trendsData) return;
     setTrendsLoading(true);
-    fetch(`/api/players/trends?playerId=${encodeURIComponent(playerId)}&days=28`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/players/trends?playerId=${encodeURIComponent(playerId)}&days=28&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(d => setTrendsData(d))
       .catch(() => setTrendsData({ cmjHistory: [], acwrHistory: [], gymAcwrHistory: [], tsbHistory: [] }))
       .finally(() => setTrendsLoading(false));
-  }, [trendsOpen, apiKey, playerId, trendsData]);
+  }, [trendsOpen, apiKey, playerId, trendsData, workspace]);
 
   // Restore recovery status when player changes
   useEffect(() => {
@@ -2048,11 +2048,11 @@ export default function Home() {
       .then(r => r.json())
       .then(data => setOneRM(data.values || {}))
       .catch(() => setOneRM({}));
-    fetch(`/api/players/1rm-history?playerId=${encodeURIComponent(playerId)}`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/players/1rm-history?playerId=${encodeURIComponent(playerId)}&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(data => setRmHistory(Array.isArray(data.history) ? data.history : []))
       .catch(() => setRmHistory([]));
-  }, [apiKey, playerId]);
+  }, [apiKey, playerId, workspace]);
 
   // Load microcycle templates list when the coach key is present.
   useEffect(() => {
@@ -2066,27 +2066,27 @@ export default function Home() {
   // Fetch player contraindications when player changes.
   useEffect(() => {
     if (!apiKey || !playerId) { setRestrictions([]); return; }
-    fetch(`/api/player/restrictions?playerId=${encodeURIComponent(playerId)}`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/player/restrictions?playerId=${encodeURIComponent(playerId)}&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(data => setRestrictions(Array.isArray(data.restrictions) ? data.restrictions : []))
       .catch(() => setRestrictions([]));
-  }, [apiKey, playerId]);
+  }, [apiKey, playerId, workspace]);
 
   // Fetch weekly volume when player changes
   useEffect(() => {
     if (!apiKey || !playerId) { setVolumeStats(null); return; }
-    fetch(`/api/players/volume?playerId=${encodeURIComponent(playerId)}&days=7`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/players/volume?playerId=${encodeURIComponent(playerId)}&days=7&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(data => setVolumeStats(data))
       .catch(() => setVolumeStats(null));
-  }, [apiKey, playerId]);
+  }, [apiKey, playerId, workspace]);
 
   // Load per-exercise progression hints and weight history whenever the current session changes.
   useEffect(() => {
     if (!session || !playerId || !apiKey) { setProgressionMap({}); setExHistoryMap({}); return; }
     const names = (session.blocks || []).flatMap(b => (b.exercises || []).map(e => e.name)).filter(Boolean);
     if (!names.length) return;
-    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }, body: JSON.stringify({ playerId, names }) };
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }, body: JSON.stringify({ playerId, names, workspace }) };
     Promise.all([
       fetch('/api/players/progression', opts).then(r => r.json()).catch(() => ({})),
       fetch('/api/players/ex-history', opts).then(r => r.json()).catch(() => ({})),
@@ -2094,30 +2094,30 @@ export default function Home() {
       setProgressionMap(prog.progression || {});
       setExHistoryMap(hist.histories || {});
     });
-  }, [session, playerId, apiKey]);
+  }, [session, playerId, apiKey, workspace]);
 
   // Load team tonnage when switching to the Нагрузка section.
   useEffect(() => {
     if (mainSection !== 'tonnage' || !apiKey) return;
     setTonnageLoading(true);
-    fetch('/api/players/team-tonnage?days=7', { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/players/team-tonnage?days=7&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(d => setTonnageData(d))
       .catch(() => {})
       .finally(() => setTonnageLoading(false));
-  }, [mainSection, apiKey]);
+  }, [mainSection, apiKey, workspace]);
 
   // Load player session history when switching to history tab.
   useEffect(() => {
     if (workspaceTab !== 'history' || !playerId || !apiKey) { setHistoryData(null); return; }
     setHistoryLoading(true);
-    fetch(`/api/players/sessions?playerId=${encodeURIComponent(playerId)}&limit=20`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/players/sessions?playerId=${encodeURIComponent(playerId)}&limit=20&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(d => setHistoryData(d))
       .catch(() => setHistoryData({ sessions: [] }))
       .finally(() => setHistoryLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceTab, playerId, apiKey]);
+  }, [workspaceTab, playerId, apiKey, workspace]);
 
   // Load exercise progress data when history loads (top recurring exercises).
   useEffect(() => {
@@ -2138,14 +2138,14 @@ export default function Home() {
     fetch('/api/players/ex-history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ playerId, names }),
+      body: JSON.stringify({ playerId, names, workspace }),
     })
       .then(r => (r.ok ? r.json() : { histories: {} }))
       .then(d => { if (!cancelled) setExProgressData(d.histories || {}); })
       .catch(() => { if (!cancelled) setExProgressData({}); });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyData, playerId, apiKey]);
+  }, [historyData, playerId, apiKey, workspace]);
 
   // Auto-load team status when switching to status sub-tab in Нагрузка.
   useEffect(() => {
@@ -2157,26 +2157,26 @@ export default function Home() {
   useEffect(() => {
     if (mainSection !== 'readiness' || !apiKey) return;
     setReadinessLoading(true);
-    fetch(`/api/team/readiness?date=${readinessDate}`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/team/readiness?date=${readinessDate}&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(d => setReadinessData(d))
       .catch(() => setReadinessData({ players: [] }))
       .finally(() => setReadinessLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainSection, apiKey, readinessDate]);
+  }, [mainSection, apiKey, readinessDate, workspace]);
 
   // Load team calendar when switching to calendar section or changing week.
   useEffect(() => {
     if (mainSection !== 'calendar' || !apiKey) return;
     setCalLoading(true);
     setCalData(null);
-    fetch(`/api/schedule/week?start=${calWeekStart}`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/schedule/week?start=${calWeekStart}&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(d => setCalData(d))
       .catch(() => setCalData({ players: [], sessions: {}, dates: [] }))
       .finally(() => setCalLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainSection, apiKey, calWeekStart]);
+  }, [mainSection, apiKey, calWeekStart, workspace]);
 
   // Load monthly schedule when switching to planner section or changing month.
   useEffect(() => {
@@ -2184,13 +2184,13 @@ export default function Home() {
     setPlannerLoading(true);
     setMonthSchedule(null);
     setPlannerEditDate(null);
-    fetch(`/api/schedule/month?month=${plannerMonth}`, { headers: { 'x-api-key': apiKey } })
+    fetch(`/api/schedule/month?month=${plannerMonth}&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
       .then(r => r.json())
       .then(d => setMonthSchedule(Array.isArray(d.days) ? d.days : []))
       .catch(() => setMonthSchedule([]))
       .finally(() => setPlannerLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainSection, apiKey, plannerMonth]);
+  }, [mainSection, apiKey, plannerMonth, workspace]);
 
   function plannerDayFor(dateStr) {
     return (monthSchedule || []).find(d => d.date === dateStr) || null;
@@ -2214,14 +2214,14 @@ export default function Home() {
     await fetch('/api/schedule/month', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ month: plannerMonth, days: next }),
+      body: JSON.stringify({ month: plannerMonth, days: next, workspace }),
     }).catch(() => {});
   }
 
   async function runPlannerAutoplan() {
     setPlannerLoading(true);
     try {
-      const r = await fetch(`/api/schedule/month?month=${plannerMonth}`, {
+      const r = await fetch(`/api/schedule/month?month=${plannerMonth}&workspace=${workspace}`, {
         method: 'PUT',
         headers: { 'x-api-key': apiKey },
       });
@@ -2487,7 +2487,7 @@ export default function Home() {
       const res = await fetch('/api/programs/team-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-        body: JSON.stringify({ playerIds: players.map(p => p.id), date }),
+        body: JSON.stringify({ playerIds: players.map(p => p.id), date, workspace }),
       });
       if (res.ok) { const d = await res.json(); setTeamStatus(d.status || {}); }
     } catch (_) {}
@@ -2814,7 +2814,7 @@ export default function Home() {
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
       setWeekPlan(prev => prev.map((p, i) => i === idx ? { ...p, saving: false, saved: true } : p));
       // Refresh volume stats
-      fetch(`/api/players/volume?playerId=${encodeURIComponent(playerId)}&days=7`, { headers: { 'x-api-key': apiKey } })
+      fetch(`/api/players/volume?playerId=${encodeURIComponent(playerId)}&days=7&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
         .then(r => r.json()).then(setVolumeStats).catch(() => {});
     } catch (err) {
       setWeekPlan(prev => prev.map((p, i) => i === idx ? { ...p, saving: false } : p));
@@ -2972,7 +2972,7 @@ export default function Home() {
       await fetch('/api/player/restrictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-        body: JSON.stringify({ playerId, restrictions: next }),
+        body: JSON.stringify({ playerId, restrictions: next, workspace }),
       });
     } catch (_) {}
   }
@@ -2992,7 +2992,7 @@ export default function Home() {
     const res = await fetch('/api/programs/regenerate-exercise', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ playerId, date, blockIndex: blockIdx, exerciseIndex: exIdx }),
+      body: JSON.stringify({ playerId, date, blockIndex: blockIdx, exerciseIndex: exIdx, workspace }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Ошибка генерации');
@@ -3047,7 +3047,7 @@ export default function Home() {
     fetch('/api/schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ events }),
+      body: JSON.stringify({ events, workspace }),
     }).catch(() => {});
   }
 
@@ -3317,7 +3317,7 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setReadinessLoading(true);
-                  fetch(`/api/team/readiness?date=${readinessDate}`, { headers: { 'x-api-key': apiKey } })
+                  fetch(`/api/team/readiness?date=${readinessDate}&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } })
                     .then(r => r.json()).then(d => setReadinessData(d))
                     .catch(() => setReadinessData({ players: [] }))
                     .finally(() => setReadinessLoading(false));
@@ -4397,7 +4397,7 @@ export default function Home() {
                   onClick={() => {
                     if (tonnageTab === 'tonnage') {
                       setTonnageData(null); setTonnageLoading(true);
-                      fetch('/api/players/team-tonnage?days=7', { headers: { 'x-api-key': apiKey } }).then(r => r.json()).then(d => setTonnageData(d)).catch(() => {}).finally(() => setTonnageLoading(false));
+                      fetch(`/api/players/team-tonnage?days=7&workspace=${workspace}`, { headers: { 'x-api-key': apiKey } }).then(r => r.json()).then(d => setTonnageData(d)).catch(() => {}).finally(() => setTonnageLoading(false));
                     } else {
                       loadTeamStatus();
                     }

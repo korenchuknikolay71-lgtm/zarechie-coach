@@ -3,15 +3,15 @@
 // POST { events: [{date, type}] } → replaces full schedule
 import { redis } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
-
-const KEY = 'schedule:team';
+import { scheduleKey } from '../../../lib/workspacePrefix';
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   if (req.method === 'GET') {
+    const { workspace = 'zarechie' } = req.query || {};
     try {
-      const raw = await redis('get', KEY);
+      const raw = await redis('get', scheduleKey(workspace));
       const events = raw ? JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw)) : [];
       return res.status(200).json({ events });
     } catch (_) {
@@ -20,9 +20,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { events } = req.body || {};
+    const { events, workspace = 'zarechie' } = req.body || {};
     if (!Array.isArray(events)) return res.status(400).json({ error: 'events array required' });
-    await redis('set', KEY, JSON.stringify(events));
+    await redis('set', scheduleKey(workspace), JSON.stringify(events));
     return res.status(200).json({ status: 'ok', events });
   }
 

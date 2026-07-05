@@ -5,6 +5,7 @@
 
 import { redis, redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { exweightKey } from '../../../lib/workspacePrefix';
 
 // Stable short key derived from exercise name.
 export function normExName(name) {
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { playerId, names } = req.body || {};
+  const { playerId, names, workspace = 'zarechie' } = req.body || {};
   if (!playerId || !Array.isArray(names) || !names.length) {
     return res.status(400).json({ error: 'playerId and names[] required' });
   }
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
 
   // Batch-fetch all exercise weight records.
   const results = await redisPipeline(
-    keys.map(k => ['HGETALL', `coach:exweight:${playerId}:${k}`])
+    keys.map(k => ['HGETALL', exweightKey(workspace, playerId, k)])
   ).catch(() => []);
 
   const progression = {};

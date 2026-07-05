@@ -5,6 +5,7 @@
 
 import { redis, redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { rosterKey, sessionKey } from '../../../lib/workspacePrefix';
 
 // Parse a single set string → total reps for that set entry.
 // Handles "3x8" → 24, "8" → 8, "4x5" → 20.
@@ -38,10 +39,11 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
   const days = Math.min(parseInt(req.query.days || '7', 10), 14);
+  const workspace = String(req.query.workspace || 'zarechie');
   const dates = windowDates(days);
 
   // Load all players from roster.
-  const rosterRaw = await redis('get', 'roster:players').catch(() => null);
+  const rosterRaw = await redis('get', rosterKey(workspace)).catch(() => null);
   let players = [];
   if (rosterRaw) {
     try {
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
   if (!players.length) return res.status(200).json({ dates, players: [] });
 
   // Batch-fetch all sessions: players × dates.
-  const keys = players.flatMap(p => dates.map(d => `coach:session:${p.id}:${d}`));
+  const keys = players.flatMap(p => dates.map(d => sessionKey(workspace, p.id, d)));
   const results = await redisPipeline(keys.map(k => ['GET', k])).catch(() => []);
 
   const playerRows = players.map((p, pi) => {

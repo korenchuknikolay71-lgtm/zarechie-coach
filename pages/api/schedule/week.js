@@ -3,12 +3,13 @@
 // Returns 7 dates starting from `start` and which players have sessions on each day.
 import { redis, redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { pfx, rosterKey } from '../../../lib/workspacePrefix';
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'GET') return res.status(405).end();
 
-  const { start } = req.query;
+  const { start, workspace = 'zarechie' } = req.query;
   if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) {
     return res.status(400).json({ error: 'start (YYYY-MM-DD) required' });
   }
@@ -26,7 +27,8 @@ export default async function handler(req, res) {
   const scoreMax = parseInt(dates[6].replace(/-/g, ''));
 
   // Load roster
-  const rosterRaw = await redis('get', 'coach:roster').catch(() => null);
+  const wp = pfx(workspace);
+  const rosterRaw = await redis('get', rosterKey(workspace)).catch(() => null);
   let players = [];
   try {
     const parsed = JSON.parse(rosterRaw);
@@ -37,7 +39,7 @@ export default async function handler(req, res) {
 
   // Batch: for each player get their session dates in range
   const results = await redisPipeline(
-    players.map(p => ['ZRANGEBYSCORE', `coach:sessions:${p.id}`, scoreMin, scoreMax])
+    players.map(p => ['ZRANGEBYSCORE', `${wp}:sessions:${p.id}`, scoreMin, scoreMax])
   ).catch(() => players.map(() => []));
 
   const sessions = {};

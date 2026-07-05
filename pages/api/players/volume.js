@@ -3,12 +3,13 @@
 
 import { redis, redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { sessionKey, sessionsKey } from '../../../lib/workspacePrefix';
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { playerId, days = '7' } = req.query;
+  const { playerId, days = '7', workspace = 'zarechie' } = req.query;
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const daysNum = Math.min(parseInt(days, 10) || 7, 30);
@@ -17,14 +18,14 @@ export default async function handler(req, res) {
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
   try {
-    const dates = await redis('zrange', `coach:sessions:${playerId}`, -20, -1).catch(() => []);
+    const dates = await redis('zrange', sessionsKey(workspace, playerId), -20, -1).catch(() => []);
     if (!dates?.length) return res.status(200).json({ sessions: 0, byBlock: {}, totalSets: 0 });
 
     const recentDates = dates.filter(d => d >= cutoffStr);
     if (!recentDates.length) return res.status(200).json({ sessions: 0, byBlock: {}, totalSets: 0 });
 
     const results = await redisPipeline(
-      recentDates.map(d => ['get', `coach:session:${playerId}:${d}`])
+      recentDates.map(d => ['get', sessionKey(workspace, playerId, d)])
     ).catch(() => []);
 
     const byBlock = {};

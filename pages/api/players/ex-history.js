@@ -6,18 +6,19 @@
 import { redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
 import { normExName } from './progression';
+import { exhistKey } from '../../../lib/workspacePrefix';
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { playerId, names } = req.body || {};
+  const { playerId, names, workspace = 'zarechie' } = req.body || {};
   if (!playerId || !Array.isArray(names) || !names.length)
     return res.status(400).json({ error: 'playerId and names[] required' });
 
   const unique = [...new Set(names.filter(Boolean))];
   const results = await redisPipeline(
-    unique.map(n => ['HGETALL', `coach:exhist:${playerId}:${normExName(n)}`])
+    unique.map(n => ['HGETALL', exhistKey(workspace, playerId, normExName(n))])
   ).catch(() => []);
 
   const histories = {};

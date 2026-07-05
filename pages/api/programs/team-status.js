@@ -5,12 +5,13 @@
 
 import { redis } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { feedbackKey, sessionKey } from '../../../lib/workspacePrefix';
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { playerIds, date } = req.body || {};
+  const { playerIds, date, workspace = 'zarechie' } = req.body || {};
   if (!Array.isArray(playerIds) || !date) return res.status(400).json({ error: 'playerIds and date required' });
 
   const status = {};
@@ -18,8 +19,8 @@ export default async function handler(req, res) {
   await Promise.all(playerIds.map(async id => {
     const sid = String(id);
     const [rawSession, rawFeedback] = await Promise.all([
-      redis('get', `coach:session:${sid}:${date}`).catch(() => null),
-      redis('get', `coach:feedback:${sid}:${date}`).catch(() => null),
+      redis('get', sessionKey(workspace, sid, date)).catch(() => null),
+      redis('get', feedbackKey(workspace, sid, date)).catch(() => null),
     ]);
 
     let hasSession = false;

@@ -3,20 +3,21 @@
 
 import { redis, redisPipeline } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { sessionKey, sessionsKey } from '../../../lib/workspacePrefix';
 
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'GET') return res.status(405).end();
 
-  const { playerId, limit = '20' } = req.query;
+  const { playerId, limit = '20', workspace = 'zarechie' } = req.query;
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const lim = Math.min(parseInt(limit, 10) || 20, 40);
-  const dates = await redis('zrange', `coach:sessions:${playerId}`, '-1', `-${lim}`, 'REV').catch(() => []);
+  const dates = await redis('zrange', sessionsKey(workspace, playerId), '-1', `-${lim}`, 'REV').catch(() => []);
 
   if (!dates || !dates.length) return res.status(200).json({ sessions: [] });
 
-  const records = await redisPipeline(dates.map(d => ['GET', `coach:session:${playerId}:${d}`])).catch(() => []);
+  const records = await redisPipeline(dates.map(d => ['GET', sessionKey(workspace, playerId, d)])).catch(() => []);
 
   const sessions = [];
   dates.forEach((date, i) => {

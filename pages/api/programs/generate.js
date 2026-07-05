@@ -12,7 +12,7 @@ import { restrictionsToPrompt } from '../../../lib/exerciseRestrictions';
 import { validateSession } from '../../../lib/sessionValidator';
 import { getExerciseMemory, formatMemoryForPrompt } from '../../../lib/exerciseMemory';
 import { getTeamPlaybook, formatPlaybookForPrompt } from '../../../lib/teamPlaybook';
-import { pfx } from '../../../lib/workspacePrefix';
+import { pfx, scheduleKey } from '../../../lib/workspacePrefix';
 
 const FOCUS_LABELS = {
   // ── СБОРЫ ЗАРЕЧЬЕ 2025 (13 июля – 26 августа) ─────────────────────────────
@@ -1315,7 +1315,7 @@ export async function buildGenerationInputs(body) {
   const [snapshot, sessionSummaries, rawSchedule, raw1RM, rawFeedbacks, rawRestrictions] = await Promise.all([
     getPlayerSnapshot(String(playerId), Number(days) || 7, targetDate, 28, workspace),
     getRecentSessionSummaries(String(playerId), 6, workspace).catch(() => []),
-    redis('get', 'schedule:team').catch(() => null),
+    redis('get', scheduleKey(workspace)).catch(() => null),
     redis('get', `${wpfx}:1rm:${String(playerId)}`).catch(() => null),
     (async () => {
       const dates = Array.from({ length: 5 }, (_, i) => {
@@ -1339,13 +1339,22 @@ export async function buildGenerationInputs(body) {
   // Per-player exercise-response memory + LSI (jump symmetry) + gym-ACWR — appended to prompt.
   const [exMemory, neuroDataRaw, gymAcwrText] = await Promise.all([
     getExerciseMemory(String(playerId), workspace).catch(() => ({})),
-    redis('get', 'neuro:data').catch(() => null),
+    workspace === 'zarechie' ? redis('get', 'neuro:data').catch(() => null) : Promise.resolve(null),
     computeGymAcwrLine(String(playerId), targetDate, workspace).catch(() => null),
   ]);
   const memoryText = formatMemoryForPrompt(exMemory);
-  // Extract LSI from zarechie neuro:data (asymmetry test)
+  // Extract LSI from workspace-safe neuro data. NK Performance data is already inside snapshot.neuro.
   let lsi = null;
-  if (neuroDataRaw) {
+  if (workspace === 'nkperf') {
+    const lsiArr = snapshot.neuro?.latest?.hist?.lsi || snapshot.neuro?.latest?.lsi;
+    if (Array.isArray(lsiArr) && lsiArr.length) {
+      const latest = [...lsiArr].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0];
+      const parsed = parseFloat(latest.lsi ?? latest.value);
+      if (!Number.isNaN(parsed)) lsi = parsed;
+    } else if (typeof lsiArr === 'number') {
+      lsi = lsiArr;
+    }
+  } else if (neuroDataRaw) {
     try {
       const neuroDB = typeof neuroDataRaw === 'string' ? JSON.parse(neuroDataRaw) : neuroDataRaw;
       const lsiArr = neuroDB?.[String(playerId)]?.hist?.lsi;
@@ -1377,7 +1386,7 @@ export async function buildGenerationInputs(body) {
   }
 
   // Team Playbook — evidence from the team's own historical session outcomes.
-  const playbookData = await getTeamPlaybook().catch(() => null);
+  const playbookData = await getTeamPlaybook(workspace).catch(() => null);
   const playbookText = playbookData
     ? formatPlaybookForPrompt(playbookData, snapshot.player?.position || '', effectiveFocus)
     : '';

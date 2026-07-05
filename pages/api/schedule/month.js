@@ -5,12 +5,12 @@
 import { redis } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
 import { assignFocuses } from '../../../lib/monthPlanner';
+import { monthlyScheduleKey } from '../../../lib/workspacePrefix';
 
-const keyFor = month => `coach:monthly_schedule:${month}`;
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
-async function loadDays(month) {
-  const raw = await redis('get', keyFor(month)).catch(() => null);
+async function loadDays(workspace, month) {
+  const raw = await redis('get', monthlyScheduleKey(workspace, month)).catch(() => null);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
@@ -24,26 +24,26 @@ export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   if (req.method === 'GET') {
-    const { month } = req.query;
+    const { month, workspace = 'zarechie' } = req.query;
     if (!MONTH_RE.test(month || '')) return res.status(400).json({ error: 'month (YYYY-MM) required' });
-    const days = await loadDays(month);
+    const days = await loadDays(workspace, month);
     return res.status(200).json({ month, days });
   }
 
   if (req.method === 'POST') {
-    const { month, days } = req.body || {};
+    const { month, days, workspace = 'zarechie' } = req.body || {};
     if (!MONTH_RE.test(month || '')) return res.status(400).json({ error: 'month (YYYY-MM) required' });
     if (!Array.isArray(days)) return res.status(400).json({ error: 'days array required' });
-    await redis('set', keyFor(month), JSON.stringify(days));
+    await redis('set', monthlyScheduleKey(workspace, month), JSON.stringify(days));
     return res.status(200).json({ month, days });
   }
 
   if (req.method === 'PUT') {
-    const { month } = req.query;
+    const { month, workspace = 'zarechie' } = req.query;
     if (!MONTH_RE.test(month || '')) return res.status(400).json({ error: 'month (YYYY-MM) required' });
-    const days = await loadDays(month);
+    const days = await loadDays(workspace, month);
     const planned = assignFocuses(days);
-    await redis('set', keyFor(month), JSON.stringify(planned));
+    await redis('set', monthlyScheduleKey(workspace, month), JSON.stringify(planned));
     return res.status(200).json({ month, days: planned });
   }
 

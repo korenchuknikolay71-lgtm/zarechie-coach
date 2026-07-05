@@ -7,8 +7,10 @@
 //   neuro:data / neuro:history  → latest cmj/rsi + baseline (avg of last 5, excl. today)
 // and derives a red/yellow/green status.
 
-import { redis, redisPipeline } from '../../../lib/redis';
+import { redis } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { getPlayerSnapshot } from '../../../lib/playerData';
+import { rosterKey } from '../../../lib/workspacePrefix';
 
 function num(v) {
   if (v == null || v === '') return null;
@@ -46,48 +48,50 @@ function parseJSON(raw) {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
+function latestByDate(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter(Boolean)
+    .slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || {};
+}
+
+function latestLsiFromNeuro(neuro) {
+  const lsiArr = neuro?.latest?.hist?.lsi || neuro?.latest?.lsi;
+  if (Array.isArray(lsiArr) && lsiArr.length) {
+    const latest = latestByDate(lsiArr);
+    const parsed = num(latest.lsi ?? latest.value);
+    return { lsi: parsed != null ? Math.round(parsed * 10) / 10 : null, lsiDate: latest.date || null };
+  }
+  if (typeof lsiArr === 'number') return { lsi: Math.round(lsiArr * 10) / 10, lsiDate: null };
+  return { lsi: null, lsiDate: null };
+}
+
 export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const date = String(req.query.date || '') ||
     new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date());
+  const workspace = String(req.query.workspace || 'zarechie');
 
   try {
     // ── Roster ───────────────────────────────────────────────────────────────
-    const rosterRaw = await redis('get', 'coach:roster').catch(() => null);
+    const rosterRaw = await redis('get', rosterKey(workspace)).catch(() => null);
     let roster = parseJSON(rosterRaw);
     if (!Array.isArray(roster)) roster = [];
 
     if (!roster.length) return res.status(200).json({ players: [] });
 
-    // ── Batch read whoop + morning survey + neuro snapshot ─────────────────────
-    const cmds = [['get', 'neuro:data']];
-    roster.forEach(p => {
-      cmds.push(['get', `whoop:history:${p.id}:${date}`]);
-      cmds.push(['get', `survey:morning:${p.id}:${date}`]);
-      cmds.push(['get', `neuro:history:${p.id}`]);
-    });
-    const results = await redisPipeline(cmds);
-
-    const neuroSnapshot = parseJSON(results[0]) || {};
+    const snapshots = await Promise.all(
+      roster.map(p => getPlayerSnapshot(String(p.id), 7, date, 28, workspace).catch(() => null))
+    );
 
     const players = roster.map((p, idx) => {
-      const base = 1 + idx * 3;
-      const whoop = parseJSON(results[base]) || {};
-      const survey = parseJSON(results[base + 1]) || {};
-      let neuroHist = parseJSON(results[base + 2]);
-      if (!Array.isArray(neuroHist)) neuroHist = [];
-
-      // LSI from zarechie neuro:data (asymmetry test)
-      const neuroEntry = neuroSnapshot[p.id];
-      const lsiArr = neuroEntry?.hist?.lsi;
-      const latestLsi = Array.isArray(lsiArr) && lsiArr.length
-        ? [...lsiArr].sort((a, b) => b.date.localeCompare(a.date))[0]
-        : null;
-      const lsi = latestLsi ? Math.round(parseFloat(latestLsi.lsi) * 10) / 10 : null;
-      const lsiDate = latestLsi?.date || null;
-
+      const snapshot = snapshots[idx] || {};
+      const whoop = latestByDate(snapshot.whoop);
+      const survey = latestByDate(snapshot.morning);
+      const neuroHist = Array.isArray(snapshot.neuro?.history) ? snapshot.neuro.history : [];
+      const { lsi, lsiDate } = latestLsiFromNeuro(snapshot.neuro);
       const recovery = num(whoop.recovery);
       const hrv = num(whoop.hrv);
       const sleep_hours = num(whoop.sleep_hours);
@@ -98,7 +102,7 @@ export default async function handler(req, res) {
 
       // CMJ today: prefer the dated history entry, fall back to neuro snapshot.
       const todayEntry = neuroHist.find(e => e && e.date === date);
-      const snap = neuroSnapshot[p.id] || {};
+      const snap = snapshot.neuro?.latest || {};
       const cmj = num(todayEntry?.cmj) ?? num(snap.cmj);
       const rsi = num(todayEntry?.rsi) ?? num(snap.rsi);
 

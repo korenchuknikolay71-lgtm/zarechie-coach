@@ -4,6 +4,7 @@
 
 import { redis } from '../../../lib/redis';
 import { isAuthorized } from '../../../lib/auth';
+import { sessionKey } from '../../../lib/workspacePrefix';
 
 const BANNED =
   'Присед со штангой на спине (Back Squat) | Жим штанги лёжа (Bench Press barbell) | Nordic Curl | Ab Wheel Rollout / Ab Roller | Broad Jump | DB Floor Press | Band Wrist Stability | Jump Set Drill | KB Press / жим с гирями | Tricep Pushdown с резиновой петлёй / Band Tricep Pushdown';
@@ -29,13 +30,13 @@ export default async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { playerId, date, blockIndex, exerciseIndex } = req.body || {};
+  const { playerId, date, blockIndex, exerciseIndex, workspace = 'zarechie' } = req.body || {};
   if (!playerId || !date || blockIndex == null || exerciseIndex == null) {
     return res.status(400).json({ error: 'playerId, date, blockIndex, exerciseIndex required' });
   }
 
   // Load saved session
-  const raw = await redis('get', `coach:session:${playerId}:${date}`).catch(() => null);
+  const raw = await redis('get', sessionKey(workspace, playerId, date)).catch(() => null);
   if (!raw) return res.status(404).json({ error: 'Программа не найдена' });
 
   let record;
@@ -116,7 +117,7 @@ ${(session.blocks || []).map((b, i) => `Блок ${i + 1} (${b.label || b.code |
     // Persist updated session — preserve the { session, player, ... } wrapper from save.js
     session.blocks[blockIndex].exercises[exerciseIndex] = newExercise;
     const toSave = record.session ? { ...record, session } : session;
-    await redis('set', `coach:session:${playerId}:${date}`, JSON.stringify(toSave));
+    await redis('set', sessionKey(workspace, playerId, date), JSON.stringify(toSave));
 
     return res.status(200).json({ exercise: newExercise });
   } catch (e) {
